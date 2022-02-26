@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<head>
+  	<title>PIZZA UNITES THE WORLD!</title>
+    	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<meta name="description" content="Pizza Shop locator based on users location"/>
+    	<script src="https://api.mapbox.com/mapbox-gl-js/v1.11.0/mapbox-gl.js"></script>
+    	<link href="https://api.mapbox.com/mapbox-gl-js/v1.11.0/mapbox-gl.css" rel="stylesheet" />
+	<link href="https://fonts.googleapis.com/css2?family=Acme&display=swap" rel="stylesheet">
+  	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
+  	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
+	<script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v4.7.2/mapbox-gl-geocoder.min.js"></script>
+	<link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v4.7.2/mapbox-gl-geocoder.css" type="text/css">
+	<link rel="shortcut icon" type="image/png" href="images/android-chrome-192x192.png"/>
+	<link href="./styles.css" rel="stylesheet"/>
+</head>
+<body>
+	<div class="bg">
+		<div><a href="mailto:snoopprophet@gmail.com"><img src="images/SnoopLogo.png" id="logo" title="Email Snoop!"></a></div>
+		<div id="home">
+			<h1>Why Pizza?</h1>
+			<div id="homebod">
+				WHY NOT!
+			</div>				
+		</div>
+		<div id='map'>
+			<div style="border-radius: 2%; position: absolute; top: 10px; left: 10px; height: 45%; width: 275px; z-index:1; background-color: rgba(230, 230, 230, 0.8); overflow-x: auto;">
+				Pizza Near You!
+				<div id="locations" style="text-align: left;">
+				</div>
+			</div>
+		</div>
+	</div>	
+<script>
+var lat;
+var lng;
+var map;
+var pizzaData = [];
+mapboxgl.accessToken = 'pk.eyJ1IjoidGhlZGFkYXMxMzEzIiwiYSI6ImNrdXNrOXdwbTB3M2Uybm82d2V1bXljbjgifQ.Qk2kDT-hQODQFqGghcr4lQ';
+
+const geocoder = new MapboxGeocoder({
+  	accessToken: mapboxgl.accessToken, 
+ 	mapboxgl: mapboxgl,
+  	marker: false
+});
+
+function getLocation() {
+  	if (navigator.geolocation) {
+    		navigator.geolocation.getCurrentPosition(getUserPosition);
+  	} else {
+    		alert("Geolocation is not supported by this browser.");
+  	}
+}
+
+function getUserPosition(position) {
+	lat = position.coords.latitude;
+	lng = position.coords.longitude;
+	var marker = new mapboxgl.Marker({
+		color: "#18fc03",
+		id: "locMarker"
+	})
+	marker.setLngLat([lng, lat]);
+	marker.addTo(map);
+	map.flyTo({
+		center: [lng, lat],
+		zoom: 9,
+		essential: true
+	});
+	pizzaArr(lng,lat);
+}
+
+function pizzaArr(lng,lat) {
+	for (i = 0; i <= 5; i++) {
+	let pizLoc = [[lng,lat],[lng + .07542,lat], [lng - .07542,lat],[lng,lat + .04283],[lng,lat - .04283]];
+	pizLoc.forEach((loc) => {
+		findPizza(loc);
+	});
+	}
+}
+
+async function findPizza(loc) {	
+	var response = await fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/pizza.json?type=poi&proximity=' + loc[0] + ',' + loc[1] + '&access_token=' + mapboxgl.accessToken + '&limit=200');
+	//var response = await fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/pizza.json?bbox=' + (lng - .07542) + ',' + (lat - .04283) + "," + (lng + .07542) + ',' + (lat + .04283) + '&access_token=' + mapboxgl.accessToken + '&limit=200');
+	var pizza = await response.json();
+	pizza.features.forEach((item) => {
+		if(!objExists(item.id)){
+			pizzaData.push(item);
+		}
+			addMarker(item);
+	});
+	pizzaData.forEach((item) => {
+		let dist = distance(lat, item.center[1], lng, item.center[0]);
+		item.distance = dist;
+	});
+	pizzaData.sort(function (a, b) {
+		return a.distance - b.distance
+	})
+	var detail = "";
+	for ( i = 0; i < pizzaData.length; i++) {
+	let pizName = pizzaData[i].place_name.replace("&", "and");
+	pizName = pizName.replace("'", "");
+		if (detail === "") {
+			detail = "<div style='margin-left: 5px;'><a href='https://www.google.com/search?q=" + pizName + "' target='_blank'>" + pizzaData[i].text + ", " + pizzaData[i].properties.address + "</a></div>"
+		} else {
+			detail = detail + "<div style='margin-left: 5px;'><a href='https://www.google.com/search?q=" + pizName + "' target='_blank'>" + pizzaData[i].text + ", " + pizzaData[i].properties.address + "</a></div>";
+		}
+	}
+	document.getElementById("locations").innerHTML = detail;console.log(pizzaData);
+}
+
+function distance(lat, lat2, lng, lng2) {
+	lng = lng * Math.PI / 180;
+	lng2 = lng2 * Math.PI / 180;
+	lat = lat * Math.PI / 180;
+	lat2 = lat2 * Math.PI / 180;
+	let dlon = lng2 - lng;
+	let dlat = lat2 - lat;
+	let a = Math.pow(Math.sin(dlat / 2), 2)
+		+ Math.cos(lat) * Math.cos(lat2)
+		* Math.pow(Math.sin(dlon / 2),2);			
+	let c = 2 * Math.asin(Math.sqrt(a));
+	let r = 3956;
+	return(c * r);
+}
+
+function addMarker(item) {
+	let pizName = item.place_name.replace("&", "and");
+	const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(
+		"<a href='https://www.google.com/search?q=" + pizName + "' target='_blank'>" + item.place_name + "</a>"
+	);
+	const el = document.createElement('div');
+	el.className = 'marker';
+	el.style.backgroundImage = `url(images/611944e3f8fe340004e0d295.png)`;
+	el.style.width = "30px";
+	el.style.height = "30px";
+	el.style.backgroundSize = '100%';
+	el.title = item.place_name;
+	el.addEventListener('click', (e) => {
+		window.open('https://www.google.com/search?q=' + pizName, '_blank');
+		e.stopPropagation();
+	});
+	new mapboxgl.Marker(el)
+		.setLngLat(item.center)
+		.setPopup(popup)
+		.addTo(map);
+}
+
+function objExists(id) {
+  	return pizzaData.some(function(el) {
+    		return el.id === id;
+  	}); 
+}
+
+async function loadMap() {
+	getLocation();
+	var element = document.getElementById('map');
+	map = new mapboxgl.Map({
+    		container: 'map', 
+		style: 'mapbox://styles/mapbox/dark-v10', 
+		center: [-98.35, 39.5],
+  		zoom: 9,
+  	});
+}
+
+function newLoc(event) {
+	let loc = JSON.parse(JSON.stringify(event.lngLat));
+	let xlat = loc.lat - lat; xlat = xlat.toFixed(4);
+	let xlng = loc.lng - lng; xlng = xlng.toFixed(4);
+	lat = loc.lat;
+	lng = loc.lng;
+	pizzaArr(lng,lat);
+}
+
+window.onload = loadMap();
+map.on('click', newLoc);
+</script>
+</body>
+</html>
